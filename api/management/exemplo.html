@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChatConnect - Mensagens</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --primary: #6C63FF;
+    --primary-dark: #5A52D5;
+    --bg-dark: #1a1a2e;
+    --bg-card: #16213e;
+    --bg-input: #0f3460;
+    --text: #e4e4e4;
+    --text-muted: #8892b0;
+    --online: #00d474;
+    --danger: #ff6b6b;
+    --bubble-sent: #6C63FF;
+    --bubble-received: #1e2a4a;
+    --border: rgba(255,255,255,0.08);
+  }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ===== TELA DE LOGIN ===== */
+  .login-screen {
+    display: flex; align-items: center; justify-content: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  }
+  .login-box {
+    background: var(--bg-card);
+    padding: 40px; border-radius: 20px;
+    width: 90%; max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    text-align: center;
+  }
+  .login-box .logo {
+    font-size: 2.5rem; font-weight: 800;
+    background: linear-gradient(135deg, #6C63FF, #00d474);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .login-box .subtitle { color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem; }
+  .login-box input {
+    width: 100%; padding: 14px 18px; margin-bottom: 14px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); font-size: 1rem;
+    outline: none; transition: border 0.3s;
+  }
+  .login-box input:focus { border-color: var(--primary); }
+  .login-box input::placeholder { color: var(--text-muted); }
+  .btn {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    font-size: 1rem; font-weight: 600; cursor: pointer;
+    transition: all 0.3s; display: flex; align-items: center;
+    justify-content: center; gap: 8px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #6C63FF, #5A52D5);
+    color: #fff;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(108,99,255,0.4); }
+  .toggle-login {
+    margin-top: 18px; color: var(--text-muted); font-size: 0.85rem;
+  }
+  .toggle-login a { color: var(--primary); cursor: pointer; text-decoration: none; }
+
+  /* ===== APP PRINCIPAL ===== */
+  .app { display: none; height: 100vh; }
+  .app.active { display: flex; }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width: 340px; min-width: 340px;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    height: 100vh;
+  }
+  .sidebar-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-header h2 {
+    font-size: 1.4rem;
+    background: linear-gradient(135deg, #6C63FF, #00d474);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header-actions { display: flex; gap: 10px; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text); font-size: 1.1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s; position: relative;
+  }
+  .icon-btn:hover { background: var(--primary); }
+  .badge {
+    position: absolute; top: -4px; right: -4px;
+    background: var(--danger); color: #fff;
+    font-size: 0.65rem; width: 18px; height: 18px;
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700;
+  }
+  .search-box {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-box input {
+    width: 100%; padding: 11px 16px 11px 42px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); font-size: 0.9rem;
+    outline: none; transition: border 0.3s;
+  }
+  .search-box input:focus { border-color: var(--primary); }
+  .search-box { position: relative; }
+  .search-box::before {
+    content: '🔍'; position: absolute; left: 34px; top: 50%;
+    transform: translateY(-50%); font-size: 0.85rem;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1; padding: 12px; text-align: center;
+    cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    color: var(--text-muted); transition: all 0.3s;
+    border-bottom: 3px solid transparent;
+  }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .tab:hover { color: var(--text); }
+
+  /* Lista de contatos */
+  .contacts-list {
+    flex: 1; overflow-y: auto; padding: 8px;
+  }
+  .contacts-list::-webkit-scrollbar { width: 4px; }
+  .contacts-list::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+
+  .contact-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; border-radius: 14px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .contact-item:hover { background: rgba(108,99,255,0.1); }
+  .contact-item.active { background: rgba(108,99,255,0.15); }
+  .avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: linear-gradient(135deg, #6C63FF, #00d474);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1.1rem; position: relative;
+    flex-shrink: 0;
+  }
+  .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .avatar .status-dot {
+    position: absolute; bottom: 1px; right: 1px;
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid var(--bg-card);
+  }
+  .status-dot.online { background: var(--online); }
+  .status-dot.offline { background: #555; }
+  .contact-info { flex: 1; min-width: 0; }
+  .contact-name { font-weight: 600; font-size: 0.95rem; }
+  .contact-last-msg {
+    color: var(--text-muted); font-size: 0.8rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .contact-meta { text-align: right; flex-shrink: 0; }
+  .contact-time { font-size: 0.7rem; color: var(--text-muted); }
+  .contact-unread {
+    background: var(--primary); color: #fff;
+    font-size: 0.7rem; width: 20px; height: 20px;
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; margin-top: 4px;
+    margin-left: auto;
+  }
+
+  /* Pedidos de amizade */
+  .friend-requests { padding: 8px; }
+  .request-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px; background: rgba(108,99,255,0.05);
+    border: 1px solid var(--border); border-radius: 14px;
+    margin-bottom: 8px;
+  }
+  .request-info { flex: 1; }
+  .request-name { font-weight: 600; font-size: 0.95rem; }
+  .request-mutual { font-size: 0.75rem; color: var(--text-muted); }
+  .request-actions { display: flex; gap: 8px; }
+  .btn-sm {
+    padding: 8px 16px; border: none; border-radius: 8px;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: all 0.3s;
+  }
+  .btn-accept { background: var(--online); color: #fff; }
+  .btn-accept:hover { background: #00b865; }
+  .btn-reject { background: rgba(255,107,107,0.2); color: var(--danger); }
+  .btn-reject:hover { background: rgba(255,107,107,0.3); }
+
+  /* ===== ÁREA DO CHAT ===== */
+  .chat-area {
+    flex: 1; display: flex; flex-direction: column;
+    background: var(--bg-dark);
+  }
+  .chat-header {
+    padding: 14px 20px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .back-btn {
+    display: none; width: 36px; height: 36px;
+    border-radius: 10px; background: var(--bg-input);
+    border: 1px solid var(--border); color: var(--text);
+    font-size: 1.1rem; cursor: pointer; align-items: center;
+    justify-content: center;
+  }
+  .chat-header .avatar { width: 42px; height: 42px; font-size: 1rem; }
+  .chat-user-info h3 { font-size: 1rem; font-weight: 600; }
+  .chat-user-info span { font-size: 0.75rem; color: var(--online); }
+  .chat-header-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* Mensagens */
+  .messages-area {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .messages-area::-webkit-scrollbar { width: 4px; }
+  .messages-area::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.3); border-radius: 4px; }
+
+  .message {
+    max-width: 70%; padding: 12px 16px;
+    border-radius: 18px; font-size: 0.9rem;
+    line-height: 1.4; position: relative;
+    animation: msgIn 0.3s ease;
+  }
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .message.sent {
+    align-self: flex-end;
+    background: var(--bubble-sent);
+    color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+  .message.received {
+    align-self: flex-start;
+    background: var(--bubble-received);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 6px;
+  }
+  .message .time {
+    font-size: 0.65rem; opacity: 0.6; margin-top: 4px;
+    text-align: right;
+  }
+  .message .time .read { color: #00d474; }
+  .message img.msg-image {
+    max-width: 100%; border-radius: 12px;
+    margin-top: 6px; cursor: pointer;
+    transition: transform 0.3s;
+  }
+  .message img.msg-image:hover { transform: scale(1.02); }
+
+  .date-divider {
+    text-align: center; color: var(--text-muted);
+    font-size: 0.75rem; margin: 16px 0;
+    position: relative;
+  }
+  .date-divider span {
+    background: var(--bg-dark); padding: 0 14px;
+    position: relative; z-index: 1;
+  }
+  .date-divider::before {
+    content: ''; position: absolute; left: 0; right: 0;
+    top: 50%; height: 1px; background: var(--border);
+  }
+
+  /* Input de mensagem */
+  .chat-input-area {
+    padding: 14px 20px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: flex-end; gap: 10px;
+  }
+  .chat-input-area .attach-btn {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text); font-size: 1.2rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s; flex-shrink: 0;
+  }
+  .chat-input-area .attach-btn:hover { background: var(--primary); }
+  .input-wrapper {
+    flex: 1; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: 14px;
+    display: flex; align-items: flex-end; padding: 4px;
+  }
+  .input-wrapper textarea {
+    flex: 1; background: none; border: none; color: var(--text);
+    font-size: 0.9rem; padding: 10px 14px; resize: none;
+    outline: none; max-height: 120px; font-family: inherit;
+    line-height: 1.4;
+  }
+  .input-wrapper textarea::placeholder { color: var(--text-muted); }
+  .send-btn {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: var(--primary); border: none;
+    color: #fff; font-size: 1.2rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s; flex-shrink: 0;
+  }
+  .send-btn:hover { background: var(--primary-dark); transform: scale(1.05); }
+
+  /* Preview de imagem */
+  .image-preview {
+    display: none; padding: 10px 20px;
+    background: var(--bg-card); border-top: 1px solid var(--border);
+    align-items: center; gap: 12px;
+  }
+  .image-preview.active { display: flex; }
+  .image-preview img {
+    width: 60px; height: 60px; border-radius: 10px; object-fit: cover;
+  }
+  .image-preview .preview-name {
+    flex: 1; font-size: 0.85rem; color: var(--text-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .image-preview .remove-preview {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(255,107,107,0.2); border: none;
+    color: var(--danger); cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); z-index: 1000;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--bg-card); border-radius: 20px;
+    padding: 30px; width: 90%; max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: modalIn 0.3s ease;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .modal h3 {
+    font-size: 1.3rem; margin-bottom: 6px;
+    background: linear-gradient(135deg, #6C63FF, #00d474);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .modal p { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
+  .modal input {
+    width: 100%; padding: 12px 16px; margin-bottom: 12px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-size: 0.9rem;
+    outline: none;
+  }
+  .modal input:focus { border-color: var(--primary); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .modal-actions .btn { flex: 1; }
+  .btn-secondary {
+    background: rgba(255,255,255,0.05); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+  /* Image viewer */
+  .image-viewer {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.9); z-index: 2000;
+    align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .image-viewer.active { display: flex; }
+  .image-viewer img {
+    max-width: 90%; max-height: 90vh;
+    border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+
+  /* Typing indicator */
+  .typing-indicator {
+    display: none; align-self: flex-start;
+    padding: 12px 18px; background: var(--bubble-received);
+    border: 1px solid var(--border); border-radius: 18px;
+    border-bottom-left-radius: 6px;
+  }
+  .typing-indicator.active { display: flex; }
+  .typing-indicator span {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted); margin: 0 2px;
+    animation: typing 1.4s infinite;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* ===== RESPONSIVO ===== */
+  @media (max-width: 768px) {
+    .sidebar {
+      width: 100%; min-width: 100%;
+      position: absolute; z-index: 10;
+      height: 100vh;
+    }
+    .chat-area {
+      position: absolute; z-index: 20;
+      width: 100%; height: 100vh;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+    .chat-area.active { transform: translateX(0); }
+    .back-btn { display: flex; }
+    .message { max-width: 85%; }
+    .login-box { padding: 30px 24px; }
+    .sidebar-header h2 { font-size: 1.2rem; }
+  }
+
+  /* Emoji picker */
+  .emoji-picker {
+    display: none; position: absolute;
+    bottom: 80px; left: 20px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 12px;
+    width: 280px; box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    z-index: 50;
+  }
+  .emoji-picker.active { display: block; }
+  .emoji-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+  .emoji-grid span {
+    font-size: 1.3rem; padding: 6px; cursor: pointer;
+    border-radius: 8px; text-align: center;
+    transition: background 0.2s;
+  }
+  .emoji-grid span:hover { background: rgba(108,99,255,0.2); }
+
+  /* Notification toast */
+  .toast {
+    position: fixed; top: 20px; right: 20px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    padding: 14px 20px; border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    z-index: 3000; transform: translateX(120%);
+    transition: transform 0.4s ease;
+    max-width: 320px;
+  }
+  .toast.show { transform: translateX(0); }
+  .toast .toast-title { font-weight: 600; font-size: 0.9rem; }
+  .toast .toast-msg { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ===== TELA DE LOGIN ===== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="logo">💬 ChatConnect</div>
+    <p class="subtitle">Conecte-se com seus amigos agora</p>
+    <input type="text" id="loginUser" placeholder="Nome de usuário" autocomplete="off">
+    <input type="password" id="loginPass" placeholder="Senha">
+    <button class="btn btn-primary" onclick="doLogin()">
+      <span>🚀</span> Entrar
+    </button>
+    <p class="toggle-login">
+      <span id="loginToggleText">Não tem conta?</span>
+      <a onclick="toggleAuthMode()" id="loginToggleLink">Cadastre-se</a>
+    </p>
+  </div>
+</div>
+
+<!-- ===== APP PRINCIPAL ===== -->
+<div class="app" id="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>💬 ChatConnect</h2>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="openAddFriend()" title="Adicionar amigo">
+          👤
+          <span class="badge" id="friendReqBadge">3</span>
+        </button>
+        <button class="icon-btn" onclick="openProfile()" title="Perfil">⚙️</button>
+      </div>
+    </div>
+
+    <div class="search-box">
+      <input type="text" placeholder="Buscar conversas..." oninput="filterContacts(this.value)">
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('chats', this)">💬 Chats</div>
+      <div class="tab" onclick="switchTab('requests', this)">👥 Pedidos</div>
+      <div class="tab" onclick="switchTab('groups', this)">👨‍👩‍👧 Grupos</div>
+    </div>
+
+    <!-- Aba Chats -->
+    <div class="contacts-list" id="tabChats">
+      <div class="contact-item active" onclick="openChat('Maria Silva', 'online')">
+        <div class="avatar">
+          MS
+          <span class="status-dot online"></span>
+        </div>
+        <div class="contact-info">
+          <div class="contact-name">Maria Silva</div>
+          <div class="contact-last-msg">Oi! Tudo bem? 😊</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">14:32</div>
+          <div class="contact-unread">2</div>
+        </div>
+      </div>
+
+      <div class="contact-item" onclick="openChat('João Santos', 'online')">
+        <div class="avatar" style="background: linear-gradient(135deg, #ff6b6b, #ffa500);">
+          JS
+          <span class="status-dot online"></span>
+        </div>
+        <div class="contact-info">
+          <div class="contact-name">João Santos</div>
+          <div class="contact-last-msg">📷 Foto</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">13:15</div>
+          <div class="contact-unread">1</div>
+        </div>
+      </div>
+
+      <div class="contact-item" onclick="openChat('Ana Costa', 'offline')">
+        <div class="avatar" style="background: linear-gradient(135deg, #00d474, #00b4d8);">
+          AC
+          <span class="status-dot offline"></span>
+        </div>
+        <div class="contact-info">
+          <div class="contact-name">Ana Costa</div>
+          <div class="contact-last-msg">Vamos combinar aquele café?</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">Ontem</div>
+        </div>
+      </div>
+
+      <div class="contact-item" onclick="openChat('Pedro Lima', 'online')">
+        <div class="avatar" style="background: linear-gradient(135deg, #e040fb, #536dfe);">
+          PL
+          <span class="status-dot online"></span>
+        </div>
+        <div class="contact-info">
+          <div class="contact-name">Pedro Lima</div>
+          <div class="contact-last-msg">Show! Combinado então 🎉</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">Ontem</div>
+        </div>
+      </div>
+
+      <div class="contact-item" onclick="openChat('Carla Mendes', 'offline')">
+        <div class="avatar" style="background: linear-gradient(135deg, #ff9a9e, #fecfef);">
+          CM
+          <span class="status-dot offline"></span>
+        </div>
+        <div class="contact-info">
+          <div class="contact-name">Carla Mendes</div>
+          <div class="contact-last-msg">Obrigada pela ajuda!</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">Seg</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba Pedidos -->
+    <div class="contacts-list friend-requests" id="tabRequests" style="display:none;">
+      <div class="request-item" id="req1">
+        <div class="avatar" style="background: linear-gradient(135deg, #f093fb, #f5576c); width:44px; height:44px; font-size:0.9rem;">
+          RF
+        </div>
+        <div class="request-info">
+          <div class="request-name">Rafael Ferreira</div>
+          <div class="request-mutual">5 amigos em comum</div>
+        </div>
+        <div class="request-actions">
+          <button class="btn-sm btn-accept" onclick="acceptRequest('req1')">✓</button>
+          <button class="btn-sm btn-reject" onclick="rejectRequest('req1')">✕</button>
+        </div>
+      </div>
+
+      <div class="request-item" id="req2">
+        <div class="avatar" style="background: linear-gradient(135deg, #4facfe, #00f2fe); width:44px; height:44px; font-size:0.9rem;">
+          LO
+        </div>
+        <div class="request-info">
+          <div class="request-name">Luciana Oliveira</div>
+          <div class="request-mutual">2 amigos em comum</div>
+        </div>
+        <div class="request-actions">
+          <button class="btn-sm btn-accept" onclick="acceptRequest('req2')">✓</button>
+          <button class="btn-sm btn-reject" onclick="rejectRequest('req2')">✕</button>
+        </div>
+      </div>
+
+      <div class="request-item" id="req3">
+        <div class="avatar" style="background: linear-gradient(135deg, #43e97b, #38f9d7); width:44px; height:44px; font-size:0.9rem;">
+          TA
+        </div>
+        <div class="request-info">
+          <div class="request-name">Thiago Almeida</div>
+          <div class="request-mutual">8 amigos em comum</div>
+        </div>
+        <div class="request-actions">
+          <button class="btn-sm btn-accept" onclick="acceptRequest('req3')">✓</button>
+          <button class="btn-sm btn-reject" onclick="rejectRequest('req3')">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba Grupos -->
+    <div class="contacts-list" id="tabGroups" style="display:none;">
+      <div class="contact-item" onclick="openChat('🎮 Grupo Gamer', 'online')">
+        <div class="avatar" style="background: linear-gradient(135deg, #667eea, #764ba2);">🎮</div>
+        <div class="contact-info">
+          <div class="contact-name">Grupo Gamer</div>
+          <div class="contact-last-msg">Pedro: Alguém online pra jogar?</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">15:00</div>
+          <div class="contact-unread">5</div>
+        </div>
+      </div>
+      <div class="contact-item" onclick="openChat('📚 Grupo Estudos', 'online')">
+        <div class="avatar" style="background: linear-gradient(135deg, #f6d365, #fda085);">📚</div>
+        <div class="contact-info">
+          <div class="contact-name">Grupo Estudos</div>
+          <div class="contact-last-msg">Ana: Prova é na sexta!</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">12:30</div>
+        </div>
+      </div>
+      <div class="contact-item" onclick="openChat('🏠 Família', 'online')">
+        <div class="avatar" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb);">🏠</div>
+        <div class="contact-info">
+          <div class="contact-name">Família</div>
+          <div class="contact-last-msg">Mãe: Almoço domingo!</div>
+        </div>
+        <div class="contact-meta">
+          <div class="contact-time">Dom</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT AREA -->
+  <div class="chat-area" id="chatArea">
+    <div class="chat-header">
+      <button class="back-btn" onclick="goBack()">←</button>
+      <div class="avatar" id="chatAvatar">MS</div>
+      <div class="chat-user-info">
+        <h3 id="chatName">Maria Silva</h3>
+        <span id="chatStatus" style="color: var(--online);">● Online</span>
+      </div>
+      <div class="chat-header-actions">
+        <button class="icon-btn" title="Chamada de voz">📞</button>
+        <button class="icon-btn" title="Chamada de vídeo">📹</button>
+        <button class="icon-btn" title="Mais opções">⋮</button>
+      </div>
+    </div>
+
+    <div class="messages-area" id="messagesArea">
+      <div class="date-divider"><span>Hoje</span></div>
+
+      <div class="message received">
+        <div>Oi! Tudo bem? 😊</div>
+        <div class="time">14:30</div>
+      </div>
+
+      <div class="message sent">
+        <div>Oi Maria! Tudo ótimo e você?</div>
+        <div class="time">14:31 <span class="read">✓✓</span></div>
+      </div>
+
+      <div class="message received">
+        <div>Tudo bem também! Viu aquela foto que postei?</div>
+        <div class="time">14:31</div>
+      </div>
+
+      <div class="message sent">
+        <div>Vi sim! Ficou incrível 📸✨</div>
+        <div class="time">14:32 <span class="read">✓✓</span></div>
+      </div>
+
+      <div class="message received">
+        <div>Obrigada! Quando a gente se encontra?</div>
+        <div class="time">14:32</div>
+      </div>
+
+      <div class="typing-indicator" id="typingIndicator">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <!-- Preview de imagem -->
+    <div class="image-preview" id="imagePreview">
+      <img id="previewImg" src="" alt="preview">
+      <span class="preview-name" id="previewName">imagem.jpg</span>
+      <button class="remove-preview" onclick="removePreview()">✕</button>
+    </div>
+
+    <!-- Emoji Picker -->
+    <div class="emoji-picker" id="emojiPicker">
+      <div class="emoji-grid" id="emojiGrid"></div>
+    </div>
+
+    <!-- Input -->
+    <div class="chat-input-area">
+      <button class="attach-btn" onclick="document.getElementById('fileInput').click()" title="Enviar arquivo">📎</button>
+      <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+      <div class="input-wrapper">
+        <button class="attach-btn" style="width:36px;height:36px;border-radius:10px;border:none;background:none;font-size:1.1rem;" onclick="toggleEmoji()" title="Emojis">😊</button>
+        <textarea id="msgInput" rows="1" placeholder="Digite uma mensagem..." oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea>
+      </div>
+      <button class="send-btn" onclick="sendMessage()" title="Enviar">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ADICIONAR AMIGO -->
+<div class="modal-overlay" id="addFriendModal">
+  <div class="modal">
+    <h3>👤 Adicionar Amigo</h3>
+    <p>Digite o nome de usuário ou e-mail da pessoa</p>
+    <input type="text" id="friendSearch" placeholder="Nome ou e-mail...">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('addFriendModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="sendFriendRequest()">Enviar Pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PERFIL -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal">
+    <h3>⚙️ Meu Perfil</h3>
+    <p>Gerencie suas informações</p>
+    <input type="text" id="profileName" placeholder="Seu nome" value="Usuário">
+    <input type="text" placeholder="Bio" value="Usando ChatConnect! 🚀">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('profileModal')">Fechar</button>
+      <button class="btn btn-primary" onclick="saveProfile(); closeModal('profileModal')">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMAGE VIEWER -->
+<div class="image-viewer" id="imageViewer" onclick="this.classList.remove('active')">
+  <img id="viewerImg" src="" alt="image">
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-title" id="toastTitle">Notificação</div>
+  <div class="toast-msg" id="toastMsg">Mensagem</div>
+</div>
+
+<script>
+  // ===== VARIÁVEIS =====
+  let isLoginMode = true;
+  let currentChat = 'Maria Silva';
+  let selectedImage = null;
+
+  // ===== EMOJIS =====
+  const emojis = [
+    '😀','😂','🥹','😍','🤩','😎','🥳','😇',
+    '🤔','😅','😊','🤗','😋','🤭','😏','😌',
+    '😢','😤','🤯','🥺','😴','🤮','👍','👎',
+    '❤️','🔥','⭐','🎉','💯','🙏','💪','👋',
+    '📸','🎵','🎮','📚','☕','🍕','🌈','🌙',
+    '✅','❌','💬','🔔','💡','🎯','🚀','💎'
+  ];
+
+  // ===== INIT =====
+  function init() {
+    const grid = document.getElementById('emojiGrid');
+    emojis.forEach(e => {
+      const s = document.createElement('span');
+      s.textContent = e;
+      s.onclick = () => {
+        document.getElementById('msgInput').value += e;
+        document.getElementById('msgInput').focus();
+      };
+      grid.appendChild(s);
+    });
+  }
+  init();
+
+  // ===== AUTH =====
+  function toggleAuthMode() {
+    isLoginMode = !isLoginMode;
+    const title = document.querySelector('.login-box .subtitle');
+    const btnText = document.querySelector('.btn-primary span');
+    const toggleText = document.getElementById('loginToggleText');
+    const toggleLink = document.getElementById('loginToggleLink');
+
+    if (isLoginMode) {
+      title.textContent = 'Conecte-se com seus amigos agora';
+      btnText.textContent = '🚀';
+      toggleText.textContent = 'Não tem conta?';
+      toggleLink.textContent = 'Cadastre-se';
+    } else {
+      title.textContent = 'Crie sua conta grátis';
+      btnText.textContent = '📝';
+      toggleText.textContent = 'Já tem conta?';
+      toggleLink.textContent = 'Fazer login';
+    }
+  }
+
+  function doLogin() {
+    const user = document.getElementById('loginUser').value.trim();
+    const pass = document.getElementById('loginPass').value.trim();
+    if (!user || !pass) {
+      showToast('⚠️ Atenção', 'Preencha todos os campos!');
+      return;
+    }
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').classList.add('active');
+    showToast('✅ Bem-vindo!', `Olá ${user}, bom te ver!`);
+  }
+
+  // ===== TABS =====
+  function switchTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tabChats').style.display = tab === 'chats' ? '' : 'none';
+    document.getElementById('tabRequests').style.display = tab === 'requests' ? '' : 'none';
+    document.getElementById('tabGroups').style.display = tab === 'groups' ? '' : 'none';
+  }
+
+  // ===== CHAT =====
+  function openChat(name, status) {
+    currentChat = name;
+    document.getElementById('chatName').textContent = name;
+    document.getElementById('chatStatus').textContent = status === 'online' ? '● Online' : '● Offline';
+    document.getElementById('chatStatus').style.color = status === 'online' ? 'var(--online)' : 'var(--text-muted)';
+
+    const initials = name.replace(/[^\w\s]/g, '').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+    document.getElementById('chatAvatar').textContent = initials;
+
+    // Mobile
+    document.getElementById('chatArea').classList.add('active');
+
+    // Clear unread
+    document.querySelectorAll('.contact-unread').forEach(b => b.remove());
+
+    // Focus input
+    document.getElementById('msgInput').focus();
+
+    // Scroll to bottom
+    scrollMessages();
+  }
+
+  function goBack() {
+    document.getElementById('chatArea').classList.remove('active');
+  }
+
+  function scrollMessages() {
+    const area = document.getElementById('messagesArea');
+    setTimeout(() => area.scrollTop = area.scrollHeight, 50);
+  }
+
+  // ===== SEND MESSAGE =====
+  function sendMessage() {
+    const input = document.getElementById('msgInput');
+    const text = input.value.trim();
+    if (!text && !selectedImage) return;
+
+    const area = document.getElementById('messagesArea');
+    const typing = document.getElementById('typingIndicator');
+    const now = new Date();
+    const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+    let msgHTML = '';
+    if (selectedImage) {
+      msgHTML += `<img class="msg-image" src="${selectedImage}" onclick="viewImage(this.src)">`;
+    }
+    if (text) {
+      msgHTML += `<div>${escapeHtml(text)}</div>`;
+    }
+    msgHTML += `<div class="time">${time} <span class="read">✓✓</span></div>`;
+
+    const msg = document.createElement('div');
+    msg.className = 'message sent';
+    msg.innerHTML = msgHTML;
+    area.insertBefore(msg, typing);
+
+    input.value = '';
+    input.style.height = 'auto';
+    removePreview();
+
+    scrollMessages();
+
+    // Simular resposta
+    simulateReply();
+  }
+
+  function simulateReply() {
+    const typing = document.getElementById('typingIndicator');
+    typing.classList.add('active');
+    scrollMessages();
+
+    const replies = [
+      'Que legal! 😄', 'Entendi! 👍', 'Hahaha 😂', 'Sim, com certeza!',
+      'Que demais! 🎉', 'Vou pensar sobre isso...', 'Top! 🔥',
+      'Combinado então! ✨', 'Que fofo! 🥰', 'Boa ideia! 💡',
+      'Sério? 😮', 'Adorei! ❤️', 'Pode deixar! 👊', 'Show de bola! 🎯'
+    ];
+
+    setTimeout(() => {
+      typing.classList.remove('active');
+
+      const area = document.getElementById('messagesArea');
+      const now = new Date();
+      const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+      const reply = replies[Math.floor(Math.random() * replies.length)];
+
+      const msg = document.createElement('div');
+      msg.className = 'message received';
+      msg.innerHTML = `<div>${reply}</div><div class="time">${time}</div>`;
+      area.insertBefore(msg, typing);
+
+      scrollMessages();
+    }, 1500 + Math.random() * 2000);
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  // ===== IMAGENS =====
+  function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      selectedImage = ev.target.result;
+      document.getElementById('previewImg').src = selectedImage;
+      document.getElementById('previewName').textContent = file.name;
+      document.getElementById('imagePreview').classList.add('active');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  function removePreview() {
+    selectedImage = null;
+    document.getElementById('imagePreview').classList.remove('active');
+  }
+
+  function viewImage(src) {
+    document.getElementById('viewerImg').src = src;
+    document.getElementById('imageViewer').classList.add('active');
+  }
+
+  // ===== EMOJI =====
+  function toggleEmoji() {
+    document.getElementById('emojiPicker').classList.toggle('active');
+  }
+
+  // Fechar emoji ao clicar fora
+  document.addEventListener('click', function(e) {
+    const picker = document.getElementById('emojiPicker');
+    if (!e.target.closest('.emoji-picker') && !e.target.closest('.attach-btn')) {
+      picker.classList.remove('active');
+    }
+  });
+
+  // ===== FRIEND REQUESTS =====
+  function acceptRequest(id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(100px)';
+      el.style.transition = 'all 0.4s ease';
+      setTimeout(() => {
+        el.remove();
+        updateBadge();
+        showToast('✅ Pedido aceito', 'Novo amigo adicionado!');
+      }, 400);
+    }
+  }
+
+  function rejectRequest(id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(-100px)';
+      el.style.transition = 'all 0.4s ease';
+      setTimeout(() => {
+        el.remove();
+        updateBadge();
+      }, 400);
+    }
+  }
+
+  function updateBadge() {
+    const count = document.querySelectorAll('.request-item').length;
+    const badge = document.getElementById('friendReqBadge');
+    badge.textContent = count;
+    if (count === 0) badge.style.display = 'none';
+  }
+
+  function sendFriendRequest() {
+    const name = document.getElementById('friendSearch').value.trim();
+    if (!name) {
+      showToast('⚠️ Atenção', 'Digite um nome!');
+      return;
+    }
+    closeModal('addFriendModal');
+    showToast('📤 Pedido enviado', `Pedido de amizade enviado para ${name}`);
+    document.getElementById('friendSearch').value = '';
+  }
+
+  // ===== MODALS =====
+  function openAddFriend() {
+    document.getElementById('addFriendModal').classList.add('active');
+  }
+
+  function openProfile() {
+    document.getElementById('profileModal').classList.add('active');
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+
+  function saveProfile() {
+    showToast('✅ Salvo', 'Perfil atualizado com sucesso!');
+  }
+
+  // Fechar modal ao clicar fora
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('active');
+    });
+  });
+
+  // ===== TOAST =====
+  function showToast(title, msg) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toastTitle').textContent = title;
+    document.getElementById('toastMsg').textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+  }
+
+  // ===== FILTER CONTACTS =====
+  function filterContacts(query) {
+    const items = document.querySelectorAll('#tabChats .contact-item');
+    const q = query.toLowerCase();
+    items.forEach(item => {
+      const name = item.querySelector('.contact-name').textContent.toLowerCase();
+      item.style.display = name.includes(q) ? '' : 'none';
+    });
+  }
+
+  // ===== UTILITY =====
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Simular notificação após 5 segundos
+  setTimeout(() => {
+    if (document.getElementById('app').classList.contains('active')) {
+      showToast('💬 Nova mensagem', 'João Santos: E aí, bora jogar?');
+    }
+  }, 8000);
+</script>
+</body>
+</html>
