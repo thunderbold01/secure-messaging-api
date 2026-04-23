@@ -1,3 +1,2 @@
-from .auth_views import *
-from .messaging_views import *
-from .crypto_views import *
+from api.models.messaging_models import SolicitacaoAmizade, Amizade, Conversa, Mensagem, Notificacao
+from api.models.auth_models import Perfil

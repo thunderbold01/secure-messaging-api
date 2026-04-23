@@ -1,5 +1,5 @@
 ﻿from django.urls import path
-from api.views import auth_views, crypto_views, messaging_views, admin_views
+from api.views import auth_views, crypto_views, messaging_views, admin_views, notification_views
 
 urlpatterns = [
     path('', auth_views.api_root, name='api-root'),
@@ -28,7 +28,13 @@ urlpatterns = [
     # Notificações
     path('notificacoes/', messaging_views.listar_notificacoes, name='notificacoes'),
     
-    # ========== ROTAS ADMIN ==========
+    # Push Notifications
+    path('push/save-subscription/', notification_views.save_subscription, name='save-subscription'),
+    path('push/remove-subscription/', notification_views.remove_subscription, name='remove-subscription'),
+    path('push/notifications/', notification_views.get_notifications, name='get-notifications'),
+    path('push/notifications/<uuid:notification_id>/read/', notification_views.mark_as_read, name='mark-notification-read'),
+    
+    # Rotas Admin
     path('admin/stats/', admin_views.admin_stats, name='admin-stats'),
     path('admin/usuarios/', admin_views.admin_usuarios, name='admin-usuarios'),
     path('admin/mensagens/', admin_views.admin_mensagens, name='admin-mensagens'),
