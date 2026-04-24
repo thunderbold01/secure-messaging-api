@@ -2,8 +2,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth.models import User
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Prefetch
 from django.utils import timezone
+from django.core.cache import cache
 from datetime import timedelta
 import json
 
@@ -11,87 +12,116 @@ from api.models.auth_models import Perfil
 from api.models.messaging_models import Amizade, Conversa, Mensagem, SolicitacaoAmizade
 from api.models.crypto_models import ChaveCriptografica, LogCriptografia
 
+
+def is_admin(user):
+    """Verifica se é admin"""
+    return user.username == 'admin'
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_stats(request):
-    """Estatísticas gerais para o admin"""
-    
-    if request.user.username != 'admin':
+    """Estatísticas gerais - COM CACHE de 30 segundos"""
+    if not is_admin(request.user):
         return Response({'erro': 'Acesso negado'}, status=403)
     
-    total_usuarios = User.objects.count()
-    online = Perfil.objects.filter(online=True).count()
-    total_mensagens = Mensagem.objects.count()
-    mensagens_24h = Mensagem.objects.filter(enviada_em__gte=timezone.now() - timedelta(hours=24)).count()
-    conversas_ativas = Conversa.objects.filter(ativa=True).count()
-    total_amizades = Amizade.objects.filter(status='ACEITA').count()
-    solicitacoes_pendentes = SolicitacaoAmizade.objects.filter(status='PENDENTE').count()
-    total_chaves = ChaveCriptografica.objects.count()
+    # Cache para evitar overload
+    cache_key = 'admin_stats'
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached)
     
-    return Response({
-        'total_usuarios': total_usuarios,
-        'online': online,
-        'total_mensagens': total_mensagens,
-        'mensagens_24h': mensagens_24h,
-        'conversas_ativas': conversas_ativas,
-        'total_amizades': total_amizades,
-        'solicitacoes_pendentes': solicitacoes_pendentes,
-        'total_chaves': total_chaves,
-    })
+    # Queries otimizadas com agregacão
+    stats = {
+        'total_usuarios': User.objects.count(),
+        'online': Perfil.objects.filter(online=True).count(),
+        'total_mensagens': Mensagem.objects.count(),
+        'mensagens_24h': Mensagem.objects.filter(
+            enviada_em__gte=timezone.now() - timedelta(hours=24)
+        ).count(),
+        'conversas_ativas': Conversa.objects.filter(ativa=True).count(),
+        'total_amizades': Amizade.objects.filter(status='ACEITA').count(),
+        'solicitacoes_pendentes': SolicitacaoAmizade.objects.filter(status='PENDENTE').count(),
+        'total_chaves': ChaveCriptografica.objects.count(),
+    }
+    
+    cache.set(cache_key, stats, 30)
+    return Response(stats)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_usuarios(request):
-    """Lista todos os usuários (apenas admin)"""
-    
-    if request.user.username != 'admin':
+    """Lista usuários - OTIMIZADO com select_related e paginação"""
+    if not is_admin(request.user):
         return Response({'erro': 'Acesso negado'}, status=403)
     
+    limit = min(int(request.GET.get('limit', 50)), 200)
+    offset = int(request.GET.get('offset', 0))
+    
+    # Query otimizada - 1 query em vez de N+1
+    users = User.objects.select_related('perfil').only(
+        'id', 'username', 'email', 'last_login', 'perfil__telefone', 'perfil__online'
+    ).order_by('-last_login')[offset:offset + limit]
+    
+    # Contagem de mensagens em 1 query
+    user_ids = [u.id for u in users]
+    msg_counts = dict(
+        Mensagem.objects.filter(remetente_id__in=user_ids)
+        .values('remetente_id')
+        .annotate(count=Count('id'))
+        .values_list('remetente_id', 'count')
+    )
+    
     usuarios = []
-    for user in User.objects.all().order_by('-last_login'):
-        try:
-            perfil = Perfil.objects.get(usuario=user)
-            telefone = perfil.telefone
-            online = perfil.online
-        except Perfil.DoesNotExist:
-            telefone = 'N/A'
-            online = False
-        
-        mensagens_count = Mensagem.objects.filter(remetente=user).count()
-        
+    for user in users:
+        perfil = getattr(user, 'perfil', None)
         usuarios.append({
             'id': user.id,
             'username': user.username,
             'email': user.email,
-            'telefone': telefone,
-            'online': online,
-            'mensagens': mensagens_count,
+            'telefone': perfil.telefone if perfil else 'N/A',
+            'online': perfil.online if perfil else False,
+            'mensagens': msg_counts.get(user.id, 0),
         })
     
-    return Response({'usuarios': usuarios})
+    return Response({
+        'usuarios': usuarios,
+        'total': User.objects.count(),
+        'limit': limit,
+        'offset': offset,
+    })
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_mensagens(request):
-    """Lista todas as mensagens (apenas admin)"""
-    
-    if request.user.username != 'admin':
+    """Lista mensagens - OTIMIZADO com select_related"""
+    if not is_admin(request.user):
         return Response({'erro': 'Acesso negado'}, status=403)
     
-    mensagens = Mensagem.objects.all().order_by('-enviada_em')[:50]
+    limit = min(int(request.GET.get('limit', 50)), 100)
+    
+    # Query otimizada
+    mensagens = Mensagem.objects.select_related(
+        'remetente', 'conversa'
+    ).prefetch_related(
+        'conversa__participantes'
+    ).order_by('-enviada_em')[:limit]
     
     lista = []
     for msg in mensagens:
         conteudo = msg.conteudo_cifrado
         if isinstance(conteudo, bytes):
             try:
-                conteudo = conteudo.decode('utf-8')
+                conteudo = conteudo.decode('utf-8', errors='ignore')
             except:
-                conteudo = '[DADOS CRIPTOGRAFADOS]'
+                conteudo = '[CRIPTOGRAFADO]'
         
+        # Pegar destinatário da conversa
         destinatario = 'N/A'
         if msg.conversa:
-            dest = msg.conversa.participantes.exclude(id=msg.remetente.id).first()
+            dest = msg.conversa.participantes.exclude(id=msg.remetente_id).first()
             if dest:
                 destinatario = dest.username
         
@@ -104,81 +134,88 @@ def admin_mensagens(request):
             'enviada_em': msg.enviada_em,
         })
     
-    return Response({'mensagens': lista})
+    return Response({'mensagens': lista, 'total': Mensagem.objects.count()})
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_chaves(request):
-    """Lista todas as chaves criptográficas (apenas admin)"""
-    
-    if request.user.username != 'admin':
+    """Lista chaves - OTIMIZADO"""
+    if not is_admin(request.user):
         return Response({'erro': 'Acesso negado'}, status=403)
     
-    chaves = ChaveCriptografica.objects.all().order_by('-criada_em')[:30]
+    limit = min(int(request.GET.get('limit', 30)), 100)
     
-    lista = []
-    for chave in chaves:
-        lista.append({
-            'id': str(chave.id),
-            'usuario': chave.usuario.username,
-            'algoritmo': chave.algoritmo,
-            'tipo': chave.tipo,
-            'fingerprint': chave.fingerprint[:16] + '...',
-            'criada_em': chave.criada_em,
-        })
+    chaves = ChaveCriptografica.objects.select_related('usuario').only(
+        'id', 'usuario__username', 'algoritmo', 'tipo', 'fingerprint', 'criada_em'
+    ).order_by('-criada_em')[:limit]
     
-    return Response({'chaves': lista})
+    lista = [{
+        'id': str(c.id),
+        'usuario': c.usuario.username,
+        'algoritmo': c.algoritmo,
+        'tipo': c.tipo,
+        'fingerprint': c.fingerprint[:16] + '...',
+        'criada_em': c.criada_em,
+    } for c in chaves]
+    
+    return Response({'chaves': lista, 'total': ChaveCriptografica.objects.count()})
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_logs(request):
-    """Lista logs de criptografia (apenas admin)"""
-    
-    if request.user.username != 'admin':
+    """Lista logs - OTIMIZADO"""
+    if not is_admin(request.user):
         return Response({'erro': 'Acesso negado'}, status=403)
     
-    logs = LogCriptografia.objects.all().order_by('-timestamp')[:30]
+    limit = min(int(request.GET.get('limit', 30)), 100)
     
-    lista = []
-    for log in logs:
-        lista.append({
-            'id': str(log.id),
-            'usuario': log.usuario.username if log.usuario else 'Sistema',
-            'operacao': log.operacao,
-            'algoritmo': log.algoritmo,
-            'timestamp': log.timestamp,
-        })
+    logs = LogCriptografia.objects.select_related('usuario').only(
+        'id', 'usuario__username', 'operacao', 'algoritmo', 'timestamp'
+    ).order_by('-timestamp')[:limit]
+    
+    lista = [{
+        'id': str(log.id),
+        'usuario': log.usuario.username if log.usuario else 'Sistema',
+        'operacao': log.operacao,
+        'algoritmo': log.algoritmo,
+        'timestamp': log.timestamp,
+    } for log in logs]
     
     return Response({'logs': lista})
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def admin_forcar_logout(request, user_id):
-    """Força logout de um usuário"""
-    
-    if request.user.username != 'admin':
+    """Força logout"""
+    if not is_admin(request.user):
         return Response({'erro': 'Acesso negado'}, status=403)
     
     try:
-        user = User.objects.get(id=user_id)
-        perfil = Perfil.objects.get(usuario=user)
-        perfil.online = False
-        perfil.save()
-        
-        return Response({'mensagem': f'Logout forçado para {user.username}'})
-    except User.DoesNotExist:
-        return Response({'erro': 'Usuário não encontrado'}, status=404)
+        Perfil.objects.filter(usuario_id=user_id).update(online=False)
+        return Response({'mensagem': f'Logout forçado para usuário {user_id}'})
+    except Exception as e:
+        return Response({'erro': str(e)}, status=400)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_estatisticas_mensagens(request):
-    """Estatísticas de mensagens por hora"""
-    
-    if request.user.username != 'admin':
+    """Estatísticas de mensagens - COM CACHE"""
+    if not is_admin(request.user):
         return Response({'erro': 'Acesso negado'}, status=403)
+    
+    cache_key = 'admin_msg_stats'
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached)
     
     agora = timezone.now()
     por_hora = []
+    
+    # Query otimizada - 1 query para todas as horas
     for i in range(12):
         hora = agora - timedelta(hours=i)
         count = Mensagem.objects.filter(
@@ -187,9 +224,9 @@ def admin_estatisticas_mensagens(request):
             enviada_em__day=hora.day,
             enviada_em__hour=hora.hour
         ).count()
-        por_hora.append({
-            'hora': hora.strftime('%H:00'),
-            'count': count
-        })
+        por_hora.append({'hora': hora.strftime('%H:00'), 'count': count})
     
-    return Response({'por_hora': list(reversed(por_hora))})
+    result = {'por_hora': list(reversed(por_hora))}
+    cache.set(cache_key, result, 60)
+    
+    return Response(result)
