@@ -1,6 +1,6 @@
 ﻿from django.urls import path
 from api.views import auth_views, crypto_views, messaging_views, admin_views, notification_views
-
+from api.views import ai_views
 urlpatterns = [
     path('', auth_views.api_root, name='api-root'),
     
@@ -42,4 +42,8 @@ urlpatterns = [
     path('admin/logs/', admin_views.admin_logs, name='admin-logs'),
     path('admin/estatisticas/', admin_views.admin_estatisticas_mensagens, name='admin-estatisticas'),
     path('admin/forcar-logout/<int:user_id>/', admin_views.admin_forcar_logout, name='admin-forcar-logout'),
+    #IA
+    path('ai/chat/', ai_views.chat_with_ai, name='ai-chat'),
+    path('ai/status/', ai_views.ai_status, name='ai-status'),
+    path('ai/clear/', ai_views.ai_clear_history, name='ai-clear'),
 ]
