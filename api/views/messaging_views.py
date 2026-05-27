@@ -425,7 +425,7 @@ def enviar_mensagem(request, conversa_id):
             return Response({'erro': 'Destinatário não possui chave pública'}, status=400)
         
         hash_original = gerar_hash_sha256(conteudo)
-        nonce_value = secrets.token_hex(16)  # string hex
+        nonce_value = secrets.token_hex(16)
         
         mensagem = Mensagem.objects.create(
             conversa=conversa,
@@ -435,13 +435,12 @@ def enviar_mensagem(request, conversa_id):
             conteudo_cifrado=json.dumps(pacote_cifrado).encode('utf-8'),
             hash_algoritmo='SHA-256',
             hash_original=hash_original,
-            nonce=nonce_value.encode('utf-8'),  # converte para bytes
+            nonce=nonce_value.encode('utf-8'),
             texto_original=conteudo
         )
         
         Conversa.objects.filter(id=conversa_id).update(ultima_mensagem=timezone.now())
         
-        # CORREÇÃO: converter UUID para string no log
         LogCriptografia.objects.create(
             usuario=request.user,
             operacao='ENVIAR_MENSAGEM',
@@ -473,9 +472,23 @@ def enviar_mensagem(request, conversa_id):
         return Response({'erro': str(e)}, status=500)
 
 
+def safe_decode(data):
+    """Função segura para decodificar bytes ou memoryview para string"""
+    if data is None:
+        return ''
+    if isinstance(data, (bytes, bytearray)):
+        return data.decode('utf-8', errors='replace')
+    if isinstance(data, memoryview):
+        return data.tobytes().decode('utf-8', errors='replace')
+    if isinstance(data, str):
+        return data
+    return str(data)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def receber_mensagens(request, conversa_id):
+    """Recebe mensagens da conversa - CORRIGIDO: erro memoryview.decode resolvido"""
     try:
         if not Conversa.objects.filter(id=conversa_id, participantes=request.user).exists():
             return Response({'erro': 'Não autorizado'}, status=403)
@@ -494,14 +507,12 @@ def receber_mensagens(request, conversa_id):
                 if msg.remetente_id == request.user.id:
                     if msg.texto_original:
                         if is_media:
-                            # Para mídia: o texto_original é um JSON com 'arquivo_base64' e 'metadados'
                             try:
                                 dados = json.loads(msg.texto_original)
                                 arquivo_base64 = dados.get('arquivo_base64', '')
                                 metadados = dados.get('metadados', {})
-                                mime_type = metadados.get('mime_type', 'application/octet-stream')
 
-                                # Ajustar mimetype por tipo
+                                mime_type = metadados.get('mime_type', 'application/octet-stream')
                                 if msg.tipo == 'AUDIO':
                                     mime_type = 'audio/webm'
                                 elif msg.tipo == 'IMAGEM':
@@ -509,23 +520,20 @@ def receber_mensagens(request, conversa_id):
                                 elif msg.tipo == 'VIDEO':
                                     mime_type = 'video/mp4'
 
-                                # Construir data URL
                                 if arquivo_base64 and not arquivo_base64.startswith('data:'):
                                     conteudo = f"data:{mime_type};base64,{arquivo_base64}"
                                 else:
-                                    conteudo = arquivo_base64  # já tem o prefixo
+                                    conteudo = arquivo_base64
                             except Exception as e:
                                 print(f"Erro ao decodificar texto_original da mídia do remetente: {e}")
                                 conteudo = None
                         else:
-                            # Mensagem de texto
                             conteudo = msg.texto_original
                     else:
                         conteudo = "[Você enviou uma mensagem]"
                     
                     integridade_verificada = True
 
-                    # Fallback para evitar campo vazio
                     if is_media and not conteudo:
                         conteudo = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='2.5'%3E%3C/circle%3E%3Cpolyline points='21 15 16 10 5 21'%3E%3C/polyline%3E%3C/svg%3E"
 
@@ -533,11 +541,14 @@ def receber_mensagens(request, conversa_id):
                 else:
                     if msg.algoritmo.startswith('HYBRID'):
                         try:
-                            pacote = json.loads(msg.conteudo_cifrado.decode('utf-8'))
+                            # CORREÇÃO: usar safe_decode para memoryview
+                            conteudo_cifrado_str = safe_decode(msg.conteudo_cifrado)
+                            pacote = json.loads(conteudo_cifrado_str)
                             decifrado = decifrar_mensagem_hibrida(pacote, request.user)
 
                             if is_media:
-                                metadados = json.loads(msg.metadados_cifrados.decode('utf-8')) if msg.metadados_cifrados else {}
+                                metadados_str = safe_decode(msg.metadados_cifrados)
+                                metadados = json.loads(metadados_str) if metadados_str else {}
                                 mime_type = metadados.get('mime_type', 'application/octet-stream')
                                 if msg.tipo == 'AUDIO':
                                     mime_type = 'audio/webm'
@@ -561,18 +572,20 @@ def receber_mensagens(request, conversa_id):
                         except Exception as e:
                             conteudo = f"[ERRO: {str(e)[:50]}]"
                     else:
-                        conteudo = msg.conteudo_cifrado.decode('utf-8', errors='ignore')
+                        conteudo_cifrado_str = safe_decode(msg.conteudo_cifrado)
+                        conteudo = conteudo_cifrado_str
 
-                # Extrair nome do arquivo para mídia
                 nome_arquivo = None
                 if is_media:
                     try:
                         if msg.remetente_id == request.user.id and msg.texto_original:
                             dados = json.loads(msg.texto_original)
                             nome_arquivo = dados.get('metadados', {}).get('nome', 'arquivo')
-                        elif msg.metadados_cifrados:
-                            metadados = json.loads(msg.metadados_cifrados.decode('utf-8'))
-                            nome_arquivo = metadados.get('nome', 'arquivo')
+                        else:
+                            metadados_str = safe_decode(msg.metadados_cifrados)
+                            if metadados_str:
+                                metadados = json.loads(metadados_str)
+                                nome_arquivo = metadados.get('nome', 'arquivo')
                     except:
                         nome_arquivo = 'arquivo'
 
@@ -594,6 +607,8 @@ def receber_mensagens(request, conversa_id):
 
             except Exception as e:
                 print(f"Erro ao processar mensagem {msg.id}: {e}")
+                import traceback
+                traceback.print_exc()
                 lista.append({
                     'id': str(msg.id),
                     'remetente': msg.remetente.username,
@@ -615,6 +630,8 @@ def receber_mensagens(request, conversa_id):
 
     except Exception as e:
         print(f"Erro geral em receber_mensagens: {e}")
+        import traceback
+        traceback.print_exc()
         return Response({'erro': str(e)}, status=500)
 
 
@@ -678,7 +695,7 @@ def info_criptografia(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def enviar_mensagem_arquivo(request, conversa_id):
-    """Envia mensagem com arquivo (imagem/áudio/vídeo) criptografado - CORRIGIDO PARA REMETENTE"""
+    """Envia mensagem com arquivo (imagem/áudio/vídeo) criptografado"""
     
     data = json.loads(request.body)
     tipo = data.get('tipo', 'IMAGEM')
@@ -686,7 +703,6 @@ def enviar_mensagem_arquivo(request, conversa_id):
     nome_arquivo = data.get('nome_arquivo', 'arquivo')
     mime_type = data.get('mime_type', 'application/octet-stream')
     
-    # Garantir que áudio webm tenha o mime_type correto
     if tipo == 'AUDIO':
         mime_type = 'audio/webm'
     
@@ -704,24 +720,19 @@ def enviar_mensagem_arquivo(request, conversa_id):
         if not destinatario_id:
             return Response({'erro': 'Destinatário não encontrado'}, status=404)
         
-        # Salvar o base64 COMPLETO (com prefixo) para o remetente
         arquivo_base64_completo = arquivo_base64
         
-        # Extrair o base64 puro (sem prefixo) para cifrar
         arquivo_base64_puro = arquivo_base64
         if ',' in arquivo_base64:
             arquivo_base64_puro = arquivo_base64.split(',')[1]
         
-        # Cifrar os dados do arquivo (usando o base64 puro)
         pacote_cifrado = cifrar_mensagem_hibrida(arquivo_base64_puro, destinatario_id)
         
         if not pacote_cifrado:
             return Response({'erro': 'Destinatário não possui chave pública'}, status=400)
         
-        # Calcular hash do arquivo (usando o base64 puro)
         hash_original = gerar_hash_sha256(arquivo_base64_puro)
         
-        # Criar mensagem com metadados do arquivo
         metadados = {
             'tipo': tipo,
             'nome': nome_arquivo,
@@ -729,9 +740,8 @@ def enviar_mensagem_arquivo(request, conversa_id):
             'mime_type': mime_type
         }
         
-        # Para o remetente, guardar o base64 COMPLETO (com prefixo)
         texto_original_data = {
-            'arquivo_base64': arquivo_base64_completo,  # Base64 completo com prefixo
+            'arquivo_base64': arquivo_base64_completo,
             'metadados': metadados
         }
         
@@ -745,7 +755,7 @@ def enviar_mensagem_arquivo(request, conversa_id):
             hash_algoritmo='SHA-256',
             hash_original=hash_original,
             nonce=secrets.token_hex(16).encode('utf-8'),
-            texto_original=json.dumps(texto_original_data)  # Guarda o base64 completo para o remetente
+            texto_original=json.dumps(texto_original_data)
         )
         
         Conversa.objects.filter(id=conversa_id).update(ultima_mensagem=timezone.now())
@@ -777,7 +787,7 @@ def enviar_mensagem_arquivo(request, conversa_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def baixar_arquivo(request, mensagem_id):
-    """Baixa arquivo de mensagem (imagem/áudio/vídeo) - COM SUPORTE WEBM"""
+    """Baixa arquivo de mensagem (imagem/áudio/vídeo)"""
     try:
         mensagem = Mensagem.objects.select_related('conversa').get(id=mensagem_id)
         
@@ -787,34 +797,28 @@ def baixar_arquivo(request, mensagem_id):
         if mensagem.tipo not in ['IMAGEM', 'AUDIO', 'VIDEO', 'ARQUIVO']:
             return Response({'erro': 'Esta mensagem não contém arquivo'}, status=400)
         
-        # Verificar se é o remetente ou destinatário
         if mensagem.remetente_id == request.user.id and mensagem.texto_original:
-            # Remetente: usar o texto original salvo
             dados_originais = json.loads(mensagem.texto_original)
             arquivo_base64 = dados_originais.get('arquivo_base64', '')
             metadados = dados_originais.get('metadados', {})
         else:
-            # Destinatário: decifrar o pacote
-            pacote = json.loads(mensagem.conteudo_cifrado.decode('utf-8'))
+            conteudo_cifrado_str = safe_decode(mensagem.conteudo_cifrado)
+            pacote = json.loads(conteudo_cifrado_str)
             arquivo_base64 = decifrar_mensagem_hibrida(pacote, request.user)
             
             if arquivo_base64.startswith('[ERRO'):
                 return Response({'erro': 'Falha ao decifrar arquivo'}, status=500)
             
-            metadados = json.loads(mensagem.metadados_cifrados.decode('utf-8')) if mensagem.metadados_cifrados else {}
+            metadados_str = safe_decode(mensagem.metadados_cifrados)
+            metadados = json.loads(metadados_str) if metadados_str else {}
         
         if not arquivo_base64:
             return Response({'erro': 'Arquivo não encontrado'}, status=404)
         
-        # Construir o data URL completo
         mime_type = metadados.get('mime_type', 'application/octet-stream')
         
-        # Garantir mime_type correto para áudio webm
         if mensagem.tipo == 'AUDIO':
-            if 'webm' in str(mime_type) or metadados.get('nome', '').endswith('.webm'):
-                mime_type = 'audio/webm'
-            else:
-                mime_type = 'audio/webm'  # Padrão para áudio gravado
+            mime_type = 'audio/webm'
         
         data_url = f"data:{mime_type};base64,{arquivo_base64}"
         
