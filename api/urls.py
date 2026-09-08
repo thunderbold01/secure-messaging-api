@@ -24,6 +24,7 @@ urlpatterns = [
     path('conversas/', messaging_views.listar_conversas, name='listar-conversas'),
     path('conversas/<uuid:conversa_id>/enviar/', messaging_views.enviar_mensagem, name='enviar-mensagem'),
     path('conversas/<uuid:conversa_id>/mensagens/', messaging_views.receber_mensagens, name='receber-mensagens'),
+    path('conversas/<uuid:conversa_id>/enviar-arquivo/', messaging_views.enviar_mensagem_arquivo, name='enviar-arquivo'),
     
     # Notificações
     path('notificacoes/', messaging_views.listar_notificacoes, name='notificacoes'),
@@ -45,4 +46,7 @@ urlpatterns = [
     path('ai/chat/', ai_views.chat_with_ai, name='ai-chat'),
     path('ai/status/', ai_views.ai_status, name='ai-status'),
     path('ai/clear/', ai_views.ai_clear_history, name='ai-clear'),
+    path('ai/web-search/', ai_views.ai_web_search, name='ai-web-search'),
+    path('ai/web-fetch/', ai_views.ai_web_fetch, name='ai-web-fetch'),
+    path('ai/web-test/', ai_views.ai_web_test, name='ai-web-test'),
 ]

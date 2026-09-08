@@ -45,3 +45,15 @@ static/
 
 # Secret key
 SECRET_KEY.txt
+
+# SSL certificates
+ssl/
+
+# Built frontend
+frontend/
+
+# PyInstaller
+*.spec
+
+# Test files
+test_*.py

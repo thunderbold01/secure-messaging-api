@@ -1,6 +1,9 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, re_path
+from django.conf import settings
+from django.http import HttpResponse, FileResponse
 from rest_framework.authtoken.views import obtain_auth_token
+import os
 
 # Auth Views
 from api.views.auth_views import (
@@ -32,7 +35,31 @@ from api.views.notification_views import (
 )
 
 # AI Views
-from api.views.ai_views import chat_with_ai, ai_status, ai_clear_history
+from api.views.ai_views import chat_with_ai, ai_status, ai_clear_history, ai_web_search, ai_web_fetch, ai_web_test
+
+
+def serve_frontend(request, path=''):
+    frontend_dir = getattr(settings, 'FRONTEND_DIR', os.path.join(settings.BASE_DIR, 'frontend'))
+    if not path:
+        path = 'index.html'
+    file_path = os.path.join(frontend_dir, path)
+    if os.path.isfile(file_path):
+        ext = os.path.splitext(path)[1]
+        content_types = {
+            '.html': 'text/html',
+            '.js': 'application/javascript',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.svg': 'image/svg+xml',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.ico': 'image/x-icon',
+            '.woff': 'font/woff',
+            '.woff2': 'font/woff2',
+        }
+        ct = content_types.get(ext, 'application/octet-stream')
+        return FileResponse(open(file_path, 'rb'), content_type=ct)
+    return FileResponse(open(os.path.join(frontend_dir, 'index.html'), 'rb'), content_type='text/html')
 
 urlpatterns = [
     # Admin Django
@@ -85,6 +112,9 @@ urlpatterns = [
     path('api/ai/chat/', chat_with_ai, name='chat_with_ai'),
     path('api/ai/status/', ai_status, name='ai_status'),
     path('api/ai/clear/', ai_clear_history, name='ai_clear_history'),
+    path('api/ai/web-search/', ai_web_search, name='ai_web_search'),
+    path('api/ai/web-fetch/', ai_web_fetch, name='ai_web_fetch'),
+    path('api/ai/web-test/', ai_web_test, name='ai_web_test'),
     
     # Admin
     path('api/admin/stats/', admin_stats, name='admin_stats'),
