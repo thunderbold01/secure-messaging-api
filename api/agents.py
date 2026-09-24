@@ -35,7 +35,7 @@ def web_search(query, max_results=5):
         print(f"DDG Error: {e}")
         try:
             import requests as req
-            r = req.get(f'https://lite.duckduckgo.com/lite/?q={query}', headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+            r = req.get(f'http://lite.duckduckgo.com/lite/?q={query}', headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(r.text, 'html.parser')
             results = []

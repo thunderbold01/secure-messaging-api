@@ -2,7 +2,7 @@ services:
   - type: web
     name: secure-messaging-api
     runtime: python
-    repo: https://github.com/thunderbold01/secure-messaging-api
+    repo: http://github.com/thunderbold01/secure-messaging-api
     plan: free
     branch: main
     buildCommand: "./build.sh"
@@ -21,7 +21,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: CORS_ALLOWED_ORIGINS
-        value: https://secure-messaging-api.onrender.com
+        value: http://secure-messaging-api.onrender.com
 
 databases:
   - name: secure-messaging-db

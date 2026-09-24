@@ -5,7 +5,6 @@ import socket
 import threading
 import webbrowser
 import shutil
-import ssl
 
 
 def get_base_dir():
@@ -29,28 +28,6 @@ def get_local_ip():
         return ip
     except Exception:
         return '127.0.0.1'
-
-
-def get_ssl_paths():
-    base_dir = get_base_dir()
-    cert_path = os.path.join(base_dir, 'ssl', 'cert.pem')
-    key_path = os.path.join(base_dir, 'ssl', 'key.pem')
-
-    if os.path.exists(cert_path) and os.path.exists(key_path):
-        print('[SSL] Certificados encontrados')
-        return cert_path, key_path
-
-    try:
-        from generate_ssl import generate_ssl_cert
-        cert_path, key_path = generate_ssl_cert()
-        if cert_path and key_path:
-            print('[SSL] Certificados gerados automaticamente')
-            return cert_path, key_path
-    except Exception:
-        pass
-
-    print('[SSL] AVISO: HTTPS nao disponivel. Use generate_ssl.py para gerar certificados.')
-    return None, None
 
 
 def main():
@@ -83,10 +60,7 @@ def main():
 
     local_ip = get_local_ip()
     port = 8000
-
-    cert_path, key_path = get_ssl_paths()
-    use_ssl = cert_path is not None and key_path is not None
-    protocol = 'https' if use_ssl else 'http'
+    protocol = 'http'
 
     print()
     print('=' * 50)
@@ -97,10 +71,7 @@ def main():
     print(f'  Frontend:    {protocol}://{local_ip}:{port}/')
     print(f'  Admin:       {protocol}://{local_ip}:{port}/admin.html')
     print(f'  API:         {protocol}://{local_ip}:{port}/api/')
-    if use_ssl:
-        print(f'  SSL:         TLS 1.2+ (certificado autoassinado)')
-    else:
-        print(f'  SSL:         DESABILITADO (gere certificados com generate_ssl.py)')
+    print(f'  SSL:         DESABILITADO (somente HTTP)')
     print()
     print(f'  Para outro PC na mesma rede:')
     print(f'  -> {protocol}://{local_ip}:{port}/')
@@ -117,22 +88,12 @@ def main():
 
     import subprocess
 
-    if use_ssl:
-        rel_cert = os.path.relpath(cert_path, base_dir).replace('\\', '/')
-        rel_key = os.path.relpath(key_path, base_dir).replace('\\', '/')
-        ssl_endpoint = f'ssl:{port}:privateKey={rel_key}:certKey={rel_cert}:interface=0.0.0.0'
-        subprocess.run([
-            sys.executable, '-m', 'daphne',
-            '-e', ssl_endpoint,
-            'core.asgi:application'
-        ], cwd=base_dir)
-    else:
-        subprocess.run([
-            sys.executable, '-m', 'daphne',
-            '-b', '0.0.0.0',
-            '-p', str(port),
-            'core.asgi:application'
-        ], cwd=base_dir)
+    subprocess.run([
+        sys.executable, '-m', 'daphne',
+        '-b', '0.0.0.0',
+        '-p', str(port),
+        'core.asgi:application'
+    ], cwd=base_dir)
 
 
 if __name__ == '__main__':
